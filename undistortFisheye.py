@@ -31,6 +31,7 @@ def calibrateCamera(calibrationImagesPath, patternSize, distortionModel):
     
     # Set object points of the chessboard in the 3D world
 
+
     objpoints = np.zeros((1, patternSize[0]*patternSize[1], 3), np.float32)
     objpoints[0,:,:2] = np.mgrid[0:patternSize[0], 0:patternSize[1]].T.reshape(-1, 2)
 
@@ -42,6 +43,7 @@ def calibrateCamera(calibrationImagesPath, patternSize, distortionModel):
     i = 0
 
     for file in fileList:
+        print (file)
         
         i += 1
         calibImage = cv2.imread(calibrationImagesPath + file)
@@ -50,7 +52,10 @@ def calibrateCamera(calibrationImagesPath, patternSize, distortionModel):
 
         # Find chessboard corners
 
-        retVal, corners = cv2.findChessboardCorners(grayscale, patternSize, cv2.CALIB_CB_NORMALIZE_IMAGE+cv2.CALIB_CB_ADAPTIVE_THRESH)
+        if distortionModel == "BrownConrady" :
+            retVal, corners = cv2.findChessboardCorners(grayscale, patternSize, cv2.CALIB_CB_NORMALIZE_IMAGE+cv2.CALIB_CB_ADAPTIVE_THRESH)
+        else : 
+            retVal, corners = cv2.findChessboardCorners(grayscale, patternSize, cv2.CALIB_CB_ADAPTIVE_THRESH+cv2.CALIB_CB_FAST_CHECK+cv2.CALIB_CB_NORMALIZE_IMAGE)
 
         # If corners were found correctly, the calibration image is valid
         if retVal:
@@ -60,16 +65,19 @@ def calibrateCamera(calibrationImagesPath, patternSize, distortionModel):
             objectPoints.append(objpoints)
             # Refine the results, to get a more accurate result of the corner locations
             print("Refining corner locations...")
-            cv2.cornerSubPix(grayscale, corners, (11,11), (-1,-1), (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001))
+            if distortionModel == "BrownConrady":
+                cv2.cornerSubPix(grayscale, corners, (11,11), (-1,-1), (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001))
+            else : 
+                cv2.cornerSubPix(grayscale, corners, (3,3), (-1,-1), (cv2.TERM_CRITERIA_EPS+cv2.TERM_CRITERIA_MAX_ITER, 30, 0.1))
             print("Corners refined.")
             # Append image points
             imagePoints.append(corners)
+            N_OK = len(objectPoints)
 
             # Uncomment next line to check chessboard corner detection
-            # showChessboardCorners(calibImage, corners)
+            #showChessboardCorners(calibImage, corners)
 
 
-    print(imagePoints)
             
 
     print("Chessboard corner detection was performed for the calibration images")
@@ -120,10 +128,33 @@ def calibrateCamera(calibrationImagesPath, patternSize, distortionModel):
         print("New Camera Matrix: ")
         print(newCameraMatrix)
 
-    elif distortionModel == "Scaramuzza":
-        # Perform fisheye camera calibration
+        return newCameraMatrix, distCoeffs
 
-        retVal, cameraMatrix, distCoeffs, rvecs, tvecs = cv2.fisheye.calibrate(objectPoints, imagePoints, imageSize, None, None)
+    elif distortionModel == "Scaramuzza":
+
+        # Perform fisheye camera calibration
+        calibration_flags = cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC+cv2.fisheye.CALIB_CHECK_COND+cv2.fisheye.CALIB_FIX_SKEW
+
+        #retVal, cameraMatrix, distCoeffs, rvecs, tvecs = cv2.fisheye.calibrate(objectPoints, imagePoints, imageSize, None, None)
+        cameraMatrix = np.zeros((3, 3))
+        distCoeffs = np.zeros((4, 1))
+        rvecs = [np.zeros((1, 1, 3), dtype=np.float64) for i in range(N_OK)]
+        tvecs = [np.zeros((1, 1, 3), dtype=np.float64) for i in range(N_OK)]
+
+        
+        rms, _, _, _, _ = \
+            cv2.fisheye.calibrate(
+                objectPoints,
+                imagePoints,
+                grayscale.shape[::-1],
+                cameraMatrix,
+                distCoeffs,
+                rvecs,
+                tvecs,
+                calibration_flags,
+                (cv2.TERM_CRITERIA_EPS+cv2.TERM_CRITERIA_MAX_ITER, 30, 1e-6)
+            )
+        
 
         print("Intrinsic camera parameters: ")
 
@@ -153,6 +184,13 @@ def calibrateCamera(calibrationImagesPath, patternSize, distortionModel):
         #print("Translation vectors: ")
         #print(tvecs)
 
+        newCameraMatrix, roi = cv2.getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1, imageSize)
+
+        print("New Camera Matrix: ")
+        print(newCameraMatrix)
+
+        return newCameraMatrix, distCoeffs
+
 
     # Run camera calibration
     # Ask what model the user wants to use: Pinhole (no lens distortion, radial+tangential, fisheye)
@@ -160,12 +198,34 @@ def calibrateCamera(calibrationImagesPath, patternSize, distortionModel):
     # 
     # Save calibration results in a text file. This allows to perform calibration for different cameras.
 
-def undistort():
+
+
+def undistort(undistortImagesPath,camera_matrix, dist_coefs):
     b = 4
     # Select calibration profile.
     # Select image to undistort
     # Undistort based on selected profile, and write in a new image file
     # Print both distorted and undistorted images
+
+    fileList = os.listdir(undistortImagesPath)
+
+    print(str(len(fileList)) + " files found:")
+    print(fileList)
+
+    for filename in fileList :
+        img = cv2.imread(undistortImagesPath+filename,0)
+        h, w = img.shape[:2]
+
+        
+        
+        # Transforms an image to compensate for lens distortion using the camera matrix, 
+        # the distortion coefficients and the camera matrix of the distorted image.
+        res = cv2.undistort(img, camera_matrix, dist_coefs);
+
+        cv2.imwrite(undistortImagesPath+"undistort_"+filename, res)
+
+        
+        
 
 
 print("\n")
@@ -184,7 +244,9 @@ while(option != 0):
     print("--------------------------------------------------------------------------")
     print("Select an option:")
     print("1. Calibrate camera")
-    print("2. Remove distortion from image")
+    print("2. Calibrate camera with fisheye.calibrate()")
+    print("3. Remove distortion from image")
+    print("4. Remove distortion from image with fisheye.calibrate()")
     print("0. EXIT")
     print("--------------------------------------------------------------------------")
 
@@ -193,10 +255,20 @@ while(option != 0):
     if option == 1:
 
         calibrateCamera("./calibrationImages/", (6,9), "BrownConrady")
-
+    
     elif option == 2:
+        calibrateCamera("./calibrationImages/", (6,9), "Scaramuzza")
 
-        undistort()
+    elif option == 3:
+
+        cameraMatrix, distCoeffs = calibrateCamera("./calibrationImages/", (6,9), "BrownConrady")
+        undistort("./distortImages/", cameraMatrix, distCoeffs)
+
+    elif option == 4:
+
+        cameraMatrix, distCoeffs = calibrateCamera("./calibrationImages/", (6,9), "Scaramuzza")
+        undistort("./distortImages/", cameraMatrix, distCoeffs)
+
 
     print("\n")
     
