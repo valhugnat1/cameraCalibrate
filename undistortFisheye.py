@@ -66,9 +66,10 @@ def calibrateCamera(calibrationImagesPath, patternSize, distortionModel):
             imagePoints.append(corners)
 
             # Uncomment next line to check chessboard corner detection
-            showChessboardCorners(calibImage, corners)
+            # showChessboardCorners(calibImage, corners)
 
 
+    print(imagePoints)
             
 
     print("Chessboard corner detection was performed for the calibration images")
@@ -122,22 +123,8 @@ def calibrateCamera(calibrationImagesPath, patternSize, distortionModel):
     elif distortionModel == "Scaramuzza":
         # Perform fisheye camera calibration
 
-        cameraMatrix = np.zeros((3, 3))
-        distCoeffs = np.zeros((4, 1))
-        rvecs = [np.zeros((1, 1, 3), dtype=np.float64) for i in range(len(imagePoints))]
-        tvecs = [np.zeros((1, 1, 3), dtype=np.float64) for i in range(len(imagePoints))]  
-        rms, _, _, _, _ = \
-            cv2.fisheye.calibrate(
-                objectPoints,
-                imagePoints,
-                imageSize,
-                cameraMatrix,
-                distCoeffs,
-                rvecs,
-                tvecs,
-            )
+        retVal, cameraMatrix, distCoeffs, rvecs, tvecs = cv2.fisheye.calibrate(objectPoints, imagePoints, imageSize, None, None)
 
-        # retVal, cameraMatrix, distCoeffs, rvecs, tvecs = cv2.fisheye.calibrate(objectPoints, imagePoints, imageSize, None, None)
         print("Intrinsic camera parameters: ")
 
         fx = cameraMatrix[0][0]
@@ -154,7 +141,7 @@ def calibrateCamera(calibrationImagesPath, patternSize, distortionModel):
 
         print("Fisheye distortion coefficients: ")
 
-        [theta1, theta2, theta3, theta4] = distCoeffs[0]
+        [theta1, theta2, theta3, theta4] = distCoeffs
 
         print("theta1: " + str(theta1))
         print("theta2: " + str(theta2))
@@ -205,7 +192,7 @@ while(option != 0):
 
     if option == 1:
 
-        calibrateCamera("./calibrationImages/", (6,8), "BrownConrady")
+        calibrateCamera("./calibrationImages/", (6,9), "BrownConrady")
 
     elif option == 2:
 
