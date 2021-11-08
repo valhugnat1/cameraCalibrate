@@ -66,7 +66,7 @@ def calibrateCamera(calibrationImagesPath, patternSize, distortionModel):
             imagePoints.append(corners)
 
             # Uncomment next line to check chessboard corner detection
-            #showChessboardCorners(calibImage, corners)
+            showChessboardCorners(calibImage, corners)
 
 
             
@@ -205,7 +205,7 @@ while(option != 0):
 
     if option == 1:
 
-        calibrateCamera("./calibrationImages/", (6,8), "Scaramuzza")
+        calibrateCamera("./calibrationImages/", (6,8), "BrownConrady")
 
     elif option == 2:
 
