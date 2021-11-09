@@ -28,6 +28,8 @@ def calibrateCamera(calibrationImagesPath, patternSize, distortionModel):
 
     print(str(len(fileList)) + " files found:")
     print(fileList)
+
+    numImages = int(input("Introduce the number of calibration images to use: "))
     
     # Set object points of the chessboard in the 3D world
 
@@ -41,7 +43,7 @@ def calibrateCamera(calibrationImagesPath, patternSize, distortionModel):
 
     i = 0
 
-    for file in fileList:
+    for file in fileList[0:numImages]:
         print (file)
         
         i += 1
@@ -80,13 +82,13 @@ def calibrateCamera(calibrationImagesPath, patternSize, distortionModel):
             
 
     print("Chessboard corner detection was performed for the calibration images")
-    print("Valid images: " + str(len(imagePoints)) + "/" + str(len(fileList)))
+    print("Valid images: " + str(len(imagePoints)) + "/" + str(numImages))
 
     print("Estimating intrinsic and extrinsic camera parameters")
 
     if distortionModel == "BrownConrady":
         # Perform standard cv2 camera calibration
-        ret, cameraMatrix, distCoeffs, rvecs, tvecs = cv2.calibrateCamera(objectPoints[1:6], imagePoints[1:6], imageSize, None, None)
+        ret, cameraMatrix, distCoeffs, rvecs, tvecs = cv2.calibrateCamera(objectPoints, imagePoints, imageSize, None, None)
         print("Intrinsic camera parameters: ")
         fx = cameraMatrix[0][0]
         fy = cameraMatrix[1][1]
@@ -195,10 +197,10 @@ def calibrateCamera(calibrationImagesPath, patternSize, distortionModel):
 
 
 def undistort(undistortImagesPath,cameraMatrix, distCoeffs, distortionModel):
-    # Select calibration profile.
-    # Select image to undistort
-    # Undistort based on selected profile, and write in a new image file
-    # Print both distorted and undistorted images
+    
+    print("\n\n--------------------------------------------------------------------------")
+    print("--------------------------- Undistortion ---------------------------------")
+    print("--------------------------------------------------------------------------\n")
 
     fileList = os.listdir(undistortImagesPath)
 
@@ -206,26 +208,30 @@ def undistort(undistortImagesPath,cameraMatrix, distCoeffs, distortionModel):
     print(fileList)
 
     for filename in fileList :
-        img = cv2.imread(undistortImagesPath+filename,0)
-        imageSize = img.shape[:2]
+        img = cv2.imread(undistortImagesPath+filename,cv2.IMREAD_COLOR)
+        imageSize = (img.shape[1], img.shape[0])
 
         # Transforms an image to compensate for lens distortion using the camera matrix, 
         # the distortion coefficients and the camera matrix of the distorted image.
 
         if distortionModel == "BrownConrady":
-            newCameraMatrix, roi = cv2.getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1, imageSize)
-            res = cv2.undistort(img, cameraMatrix, distCoeffs, None, newCameraMatrix)
-            cv2.imwrite(undistortImagesPath+"undistort_"+filename, res)
+
+            newCameraMatrix, roi = cv2.getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 0, imageSize)
+            map1, map2 = cv2.initUndistortRectifyMap(cameraMatrix, distCoeffs, None, newCameraMatrix, imageSize, 5)
+            res = cv2.remap(img, map1, map2, cv2.INTER_LINEAR)
+
 
             # crop the image
             x, y, w, h = roi
             res = res[y:y+h, x:x+w]
-            cv2.imwrite(undistortImagesPath+"undistort_"+filename, res)
+            cv2.imwrite(undistortImagesPath+"undistorted_"+filename, res)
 
         elif distortionModel == "Scaramuzza":
             map1, map2 = cv2.fisheye.initUndistortRectifyMap(cameraMatrix, distCoeffs, np.eye(3), cameraMatrix, imageSize, cv2.CV_16SC2)
             res = cv2.remap(img, map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
-            cv2.imwrite(undistortImagesPath+"undistort_"+filename, res)
+            
+            cv2.imwrite(undistortImagesPath+"undistorted_"+filename, res)
+
 
         
         
@@ -246,32 +252,30 @@ while(option != 0):
     print("##########################################################################")
     print("--------------------------------------------------------------------------")
     print("Select an option:")
-    print("1. Calibrate camera with Brown-Conrady model")
-    print("2. Calibrate camera with Scaramuzza fisheye model")
-    print("3. Remove distortion from image with Brown-Conrady model")
-    print("4. Remove distortion from image with Scaramuzza fisheye model")
+    print("1. Calibrate camera")
+    print("2. Remove distortion")
     print("0. EXIT")
     print("--------------------------------------------------------------------------")
 
     option = int(input("Write the desired option: "))
 
+    if option != 0: 
+        distortionModel = ""
+        model = int(input("Choose distortion model (1. Brown-Conrady or 2. Scaramuzza): "))
+
+        if model == 1:
+            distortionModel = "BrownConrady"
+        elif model == 2:
+            distortionModel = "Scaramuzza"
+
     if option == 1:
 
-        calibrateCamera("./calibrationImages/", (6,9), "BrownConrady")
-    
+        calibrateCamera("./calibrationImages/", (6,9), distortionModel)
+
     elif option == 2:
-        calibrateCamera("./calibrationImages/", (6,9), "Scaramuzza")
 
-    elif option == 3:
-
-        cameraMatrix, distCoeffs = calibrateCamera("./calibrationImages/", (6,9), "BrownConrady")
-        undistort("./distortImages/", cameraMatrix, distCoeffs, "BrownConrady")
-
-    elif option == 4:
-
-        cameraMatrix, distCoeffs = calibrateCamera("./calibrationImages/", (6,9), "Scaramuzza")
-        undistort("./distortImages/", cameraMatrix, distCoeffs, "Scaramuzza")
-
+        cameraMatrix, distCoeffs = calibrateCamera("./calibrationImages/", (6,9), distortionModel)
+        undistort("./undistortImages/", cameraMatrix, distCoeffs, distortionModel)
 
     print("\n")
     
