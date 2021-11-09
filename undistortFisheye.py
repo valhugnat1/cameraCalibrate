@@ -86,7 +86,7 @@ def calibrateCamera(calibrationImagesPath, patternSize, distortionModel):
 
     if distortionModel == "BrownConrady":
         # Perform standard cv2 camera calibration
-        ret, cameraMatrix, distCoeffs, rvecs, tvecs = cv2.calibrateCamera(objectPoints, imagePoints, imageSize, None, None)
+        ret, cameraMatrix, distCoeffs, rvecs, tvecs = cv2.calibrateCamera(objectPoints[1:6], imagePoints[1:6], imageSize, None, None)
         print("Intrinsic camera parameters: ")
         fx = cameraMatrix[0][0]
         fy = cameraMatrix[1][1]
