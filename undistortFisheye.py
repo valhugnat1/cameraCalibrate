@@ -214,20 +214,24 @@ def undistort(undistortImagesPath,cameraMatrix, distCoeffs, distortionModel):
         # Transforms an image to compensate for lens distortion using the camera matrix, 
         # the distortion coefficients and the camera matrix of the distorted image.
 
+        balance = float(input("Input the desired undistortion balance value (choose a value between 0 (automatic crop) and 1 (no crop): "))
+
         if distortionModel == "BrownConrady":
 
-            newCameraMatrix, roi = cv2.getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 0, imageSize)
+            newCameraMatrix, roi = cv2.getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, balance, imageSize)
             map1, map2 = cv2.initUndistortRectifyMap(cameraMatrix, distCoeffs, None, newCameraMatrix, imageSize, 5)
             res = cv2.remap(img, map1, map2, cv2.INTER_LINEAR)
 
 
-            # crop the image
-            x, y, w, h = roi
-            res = res[y:y+h, x:x+w]
+            # Crop the image to obtained region of interest
+            #x, y, w, h = roi
+            #res = res[y:y+h, x:x+w]
             cv2.imwrite(undistortImagesPath+"undistorted_"+filename, res)
 
         elif distortionModel == "Scaramuzza":
-            map1, map2 = cv2.fisheye.initUndistortRectifyMap(cameraMatrix, distCoeffs, np.eye(3), cameraMatrix, imageSize, cv2.CV_16SC2)
+            
+            new_cameraMatrix = cv2.fisheye.estimateNewCameraMatrixForUndistortRectify(cameraMatrix, distCoeffs, imageSize, np.eye(3), balance=balance)
+            map1, map2 = cv2.fisheye.initUndistortRectifyMap(cameraMatrix, distCoeffs, np.eye(3), new_cameraMatrix, imageSize, cv2.CV_16SC2)
             res = cv2.remap(img, map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
             
             cv2.imwrite(undistortImagesPath+"undistorted_"+filename, res)
